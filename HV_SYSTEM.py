@@ -31,16 +31,20 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 
+# Import our new configuration and utilities
+from config.settings import settings
+from utils.logger import logger
+from utils.security import security
+from utils.application_finder import app_finder
 
+# Use secure configuration instead of hardcoded values
+auth_key = settings.ASSEMBLYAI_API_KEY
 
-# Replace with your actual API key
-auth_key = "aa833d9999f94692ab6082e4b31790f6"
-
-# Audio configuration
-FRAME_PER_BUFFER = 3200
+# Audio configuration from settings
+FRAME_PER_BUFFER = settings.FRAME_PER_BUFFER
 FORMAT = pyaudio.paInt16
-CHANNELS = 1
-RATE = 16000
+CHANNELS = settings.AUDIO_CHANNELS
+RATE = settings.AUDIO_RATE
 
 # Initialize PyAudio
 p = pyaudio.PyAudio()
@@ -52,8 +56,8 @@ stream = p.open(
     frames_per_buffer=FRAME_PER_BUFFER,
 )
 
-# WebSocket configuration
-URL = "wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000"
+# WebSocket configuration from settings
+URL = settings.ASSEMBLYAI_WEBSOCKET_URL
 
 # Control variables
 running_event = threading.Event()
@@ -67,14 +71,18 @@ mouse = Controller()
 
 # Hand Tracking and Camera Variables
 cap = None
-detector = htm.handDetector(maxHands=1)
+detector = htm.handDetector(
+    maxHands=settings.MAX_HANDS,
+    detectionCon=settings.DETECTION_CONFIDENCE,
+    trackCon=settings.TRACKING_CONFIDENCE
+)
 hand_running = False  # To control the start and stop functionality
 hand_thread = None  # Thread for the video feed loop
 frame = None  # Frame for the video display
 
-# Smoothing variables
-frameR = 100  # Frame Reduction
-smoothening = 7
+# Smoothing variables from settings
+frameR = settings.FRAME_REDUCTION
+smoothening = settings.SMOOTHENING_FACTOR
 plocX, plocY = 0, 0
 clocX, clocY = 0, 0
 
@@ -135,8 +143,15 @@ def perform_command(transcription):
 
     global new_filename
 
-    transcription = transcription.strip().lower()  # Normalize transcription
-    print(f"Executing command: {transcription}")  # Debugging: Log the transcription
+    # Sanitize the input using our security module
+    original_transcription = transcription
+    transcription = security.sanitize_voice_command(transcription)
+    
+    if not transcription:
+        logger.warning(f"Command blocked or invalid: {original_transcription}")
+        return
+    
+    logger.info(f"Executing command: {transcription}")  # Use logger instead of print
 
     # === "Type Here" Functionality ===
     # Normalize the transcription to lower case for easier comparison
@@ -206,12 +221,20 @@ def perform_command(transcription):
 
     # === Browser Commands ===
     elif "open" and "chrome" in transcription or "open" and "google" in transcription:
-        os.system(r'"C:\Program Files\Google\Chrome\Application\chrome.exe"')
+        chrome_path = app_finder.find_application("chrome")
+        if chrome_path:
+            security.safe_execute_command(f'"{chrome_path}"')
+        else:
+            logger.error("Chrome not found on system")
     # Ensure each application, website, or tool now has "open" keyword requirement.
     elif "open" and "firefox" in transcription or "open" and "mozilla" in transcription:
-        os.system(r'"C:\Program Files\Mozilla Firefox\firefox.exe"')
+        firefox_path = app_finder.find_application("firefox")
+        if firefox_path:
+            security.safe_execute_command(f'"{firefox_path}"')
+        else:
+            logger.error("Firefox not found on system")
     elif "open" and "edge" in transcription or "open" and "microsoft" in transcription:
-        os.system(r'start msedge')
+        security.safe_execute_command('start msedge')
 
     # === Window and Display Controls ===
     elif "minimize" in transcription and "the window" in transcription or "minimize" in transcription and "windows" in transcription:
@@ -339,21 +362,21 @@ def perform_command(transcription):
 
     # === APPLICATIONS == #
     elif "open" and "notepad" in transcription:
-        os.system("notepad")
+        security.safe_execute_command("notepad")
     elif "open" and "calculator" in transcription:
-        os.system("calc")
+        security.safe_execute_command("calc")
     elif "open" and "camera" in transcription:
-        os.system("start microsoft.windows.camera:")
+        security.safe_execute_command("start microsoft.windows.camera:")
     elif "open" and "calendar" in transcription:
-        os.system("start outlookcal:")
+        security.safe_execute_command("start outlookcal:")
     elif "open" and "settings" in transcription:
-        os.system("start ms-settings:")
+        security.safe_execute_command("start ms-settings:")
     elif "open" and "task manager" in transcription:
-        os.system("taskmgr")
+        security.safe_execute_command("taskmgr")
     elif "open" and "control panel" in transcription:
-        os.system("control")
+        security.safe_execute_command("control")
     elif "open" and "command prompt" in transcription or "open" and "cmd" in transcription:
-        os.system("cmd")
+        security.safe_execute_command("cmd")
     elif "open" and "powerpoint" in transcription:
         os.system("start powerpnt")
     elif "open" and "excel" in transcription:
@@ -530,15 +553,20 @@ def perform_command(transcription):
 
     # === System Controls ===
     elif "shut down" in transcription and "laptop" in transcription:
-        os.system("shutdown /s /t 1")
+        if security.safe_execute_command("shutdown /s /t 1"):
+            logger.info("System shutdown initiated")
     elif "restart" in transcription and "laptop" in transcription:
-        os.system("shutdown /r /t 1")
+        if security.safe_execute_command("shutdown /r /t 1"):
+            logger.info("System restart initiated")
     elif "lock" in transcription:
-        os.system("rundll32.exe user32.dll,LockWorkStation")
+        if security.safe_execute_command("rundll32.exe user32.dll,LockWorkStation"):
+            logger.info("System locked")
     elif "sleep" in transcription and "laptop" in transcription:
-        os.system("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
+        if security.safe_execute_command("rundll32.exe powrprof.dll,SetSuspendState 0,1,0"):
+            logger.info("System sleep initiated")
     elif "log off" in transcription or "sign out" in transcription and "laptop" in transcription:
-        os.system("shutdown -l")
+        if security.safe_execute_command("shutdown -l"):
+            logger.info("User logoff initiated")
 
     # === Volume and Brightness Controls ===
     elif "volume up" in transcription or ("increase" in transcription and "volume" in transcription):
@@ -1677,9 +1705,25 @@ async def send_receive():
 class UserInterface:
     def __init__(self, root):
         self.root = root
-        self.root.title("Hand Gesture and Voice Controlled System - Setup")
+        self.root.title(f"{settings.WINDOW_TITLE} - Setup")
         self.root.state('zoomed')
-        self.root.configure(bg="#1e1e2f")
+        
+        # Modern color scheme
+        self.colors = {
+            'primary': '#667eea',      # Modern purple-blue
+            'secondary': '#764ba2',    # Deep purple
+            'accent': '#f093fb',       # Light pink
+            'background': '#0f0f23',   # Very dark blue
+            'surface': '#1a1a2e',      # Dark blue-gray
+            'card': '#16213e',         # Card background
+            'text_primary': '#ffffff', # White text
+            'text_secondary': '#a0a9c0', # Gray text
+            'success': '#4ade80',      # Green
+            'warning': '#f59e0b',      # Orange
+            'error': '#ef4444'         # Red
+        }
+        
+        self.root.configure(bg=self.colors['background'])
 
         # Set application icon
         logo_image_path = get_resource_path("app_logo.ico")
@@ -1688,51 +1732,224 @@ class UserInterface:
         except Exception as e:
             print(f"Failed to load logo: {e}")
 
-        self.background_image_path = get_resource_path("hv_userinterface.png")
+        self.create_modern_layout()
+        self.create_welcome_content()
 
-        # Load and resize background image
-        try:
-            screen_width = self.root.winfo_screenwidth()
-            screen_height = self.root.winfo_screenheight()
-            image = Image.open(self.background_image_path)
-            image = image.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
-            self.bg_image = ImageTk.PhotoImage(image)
-        except Exception as e:
-            tk.messagebox.showerror("Error", f"Failed to load background image.\n{e}")
-            sys.exit(1)
-
-        # Create a canvas for the background
-        self.bg_canvas = tk.Canvas(self.root, width=screen_width, height=screen_height, highlightthickness=0)
+    def create_modern_layout(self):
+        """Create modern gradient background and layout"""
+        # Create main container
+        self.main_frame = tk.Frame(self.root, bg=self.colors['background'])
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Create gradient effect with canvas
+        self.bg_canvas = tk.Canvas(
+            self.main_frame, 
+            highlightthickness=0,
+            bg=self.colors['background']
+        )
         self.bg_canvas.pack(fill=tk.BOTH, expand=True)
-        self.bg_canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_image)
+        
+        # Bind resize event to update gradient
+        self.root.bind('<Configure>', self.on_window_resize)
+        self.root.after(100, self.create_gradient_background)
 
-        # Start button to switch to the main application
-        self.start_button = tk.Button(
-            self.root,
-            text="Start",
+    def create_gradient_background(self):
+        """Create a modern gradient background"""
+        self.bg_canvas.delete("gradient")
+        
+        width = self.bg_canvas.winfo_width()
+        height = self.bg_canvas.winfo_height()
+        
+        if width <= 1 or height <= 1:
+            self.root.after(100, self.create_gradient_background)
+            return
+        
+        # Create gradient strips
+        for i in range(height):
+            # Create color transition from primary to secondary
+            ratio = i / height
+            
+            # Interpolate between colors
+            r1, g1, b1 = self.hex_to_rgb(self.colors['background'])
+            r2, g2, b2 = self.hex_to_rgb(self.colors['surface'])
+            
+            r = int(r1 + (r2 - r1) * ratio)
+            g = int(g1 + (g2 - g1) * ratio)
+            b = int(b1 + (b2 - b1) * ratio)
+            
+            color = f"#{r:02x}{g:02x}{b:02x}"
+            
+            self.bg_canvas.create_line(
+                0, i, width, i, 
+                fill=color, 
+                width=1,
+                tags="gradient"
+            )
+
+    def hex_to_rgb(self, hex_color):
+        """Convert hex color to RGB tuple"""
+        hex_color = hex_color.lstrip('#')
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+    def on_window_resize(self, event):
+        """Handle window resize to update gradient"""
+        if event.widget == self.root:
+            self.root.after(50, self.create_gradient_background)
+
+    def create_welcome_content(self):
+        """Create the welcome page content with modern design"""
+        # Create welcome card
+        card_frame = tk.Frame(
+            self.bg_canvas, 
+            bg=self.colors['card'],
+            relief=tk.FLAT,
+            bd=0
+        )
+        
+        # Main title
+        title_label = tk.Label(
+            card_frame,
+            text="🖐️ HV SYSTEM",
+            font=("Segoe UI", 48, "bold"),
+            fg=self.colors['primary'],
+            bg=self.colors['card']
+        )
+        title_label.pack(pady=(40, 10))
+        
+        # Subtitle
+        subtitle_label = tk.Label(
+            card_frame,
+            text="Hand Gestures & Voice Controlled Computer System",
+            font=("Segoe UI", 18),
+            fg=self.colors['text_secondary'],
+            bg=self.colors['card']
+        )
+        subtitle_label.pack(pady=(0, 30))
+        
+        # Feature highlights
+        features_frame = tk.Frame(card_frame, bg=self.colors['card'])
+        features_frame.pack(pady=20)
+        
+        features = [
+            ("🖱️", "Gesture Control", "Control mouse with hand movements"),
+            ("🎤", "Voice Commands", "1500+ voice commands available"),
+            ("🛡️", "Secure & Reliable", "Enterprise-grade security")
+        ]
+        
+        for i, (icon, title, desc) in enumerate(features):
+            feature_frame = tk.Frame(features_frame, bg=self.colors['card'])
+            feature_frame.grid(row=0, column=i, padx=40, pady=10)
+            
+            tk.Label(
+                feature_frame,
+                text=icon,
+                font=("Segoe UI", 24),
+                bg=self.colors['card'],
+                fg=self.colors['accent']
+            ).pack()
+            
+            tk.Label(
+                feature_frame,
+                text=title,
+                font=("Segoe UI", 14, "bold"),
+                bg=self.colors['card'],
+                fg=self.colors['text_primary']
+            ).pack()
+            
+            tk.Label(
+                feature_frame,
+                text=desc,
+                font=("Segoe UI", 10),
+                bg=self.colors['card'],
+                fg=self.colors['text_secondary'],
+                wraplength=150
+            ).pack()
+        
+        # Action buttons
+        button_frame = tk.Frame(card_frame, bg=self.colors['card'])
+        button_frame.pack(pady=(40, 40))
+        
+        # Create modern buttons
+        self.start_button = self.create_modern_button(
+            button_frame,
+            text="🚀 Start Application",
             command=self.start_main_application,
-            bg="white",
-            fg="black",
-            font=("Helvetica", 14, "bold"),
-            width=10,
-            height=1,
-            cursor="hand2"
+            primary=True
         )
-        self.start_button.place(relx=0.45, rely=0.74, anchor=tk.CENTER)
-
-        # User Manual Guides button
-        self.manual_button = tk.Button(
-            self.root,
-            text="User Manual Guides",
+        self.start_button.pack(side=tk.LEFT, padx=15)
+        
+        self.manual_button = self.create_modern_button(
+            button_frame,
+            text="📖 User Manual",
             command=self.show_user_manual,
-            bg="white",
-            fg="black",
-            font=("Helvetica", 14, "bold"),
-            width=18,
-            height=1,
-            cursor="hand2"
+            primary=False
         )
-        self.manual_button.place(relx=0.55, rely=0.74, anchor=tk.CENTER)
+        self.manual_button.pack(side=tk.LEFT, padx=15)
+        
+        # Position the card in center
+        self.bg_canvas.create_window(
+            self.bg_canvas.winfo_reqwidth() // 2,
+            self.bg_canvas.winfo_reqheight() // 2,
+            window=card_frame,
+            anchor=tk.CENTER
+        )
+        
+        # Update card position when canvas size changes
+        self.bg_canvas.bind('<Configure>', self.center_card)
+
+    def create_modern_button(self, parent, text, command, primary=True):
+        """Create a modern styled button"""
+        if primary:
+            bg_color = self.colors['primary']
+            fg_color = self.colors['text_primary']
+            active_bg = self.colors['secondary']
+        else:
+            bg_color = self.colors['surface']
+            fg_color = self.colors['text_primary']
+            active_bg = self.colors['card']
+        
+        button = tk.Button(
+            parent,
+            text=text,
+            command=command,
+            font=("Segoe UI", 12, "bold"),
+            bg=bg_color,
+            fg=fg_color,
+            activebackground=active_bg,
+            activeforeground=fg_color,
+            relief=tk.FLAT,
+            bd=0,
+            cursor="hand2",
+            padx=30,
+            pady=12
+        )
+        
+        # Add hover effects
+        button.bind("<Enter>", lambda e: self.on_button_hover(button, True, primary))
+        button.bind("<Leave>", lambda e: self.on_button_hover(button, False, primary))
+        
+        return button
+
+    def on_button_hover(self, button, entering, primary):
+        """Handle button hover effects"""
+        if entering:
+            if primary:
+                button.config(bg=self.colors['secondary'])
+            else:
+                button.config(bg=self.colors['card'])
+        else:
+            if primary:
+                button.config(bg=self.colors['primary'])
+            else:
+                button.config(bg=self.colors['surface'])
+
+    def center_card(self, event):
+        """Center the card when canvas is resized"""
+        canvas_width = event.width
+        canvas_height = event.height
+        
+        # Update card position
+        self.bg_canvas.coords("all", canvas_width // 2, canvas_height // 2)
 
     def start_main_application(self):
         """
@@ -2358,7 +2575,23 @@ class ModeSelectionPage:
         self.root = root
         self.root.title("Select Mode - Hand Gesture or Hand & Voice")
         self.root.state("zoomed")
-        self.root.configure(bg="#1e1e2f")
+        
+        # Use the same modern color scheme
+        self.colors = {
+            'primary': '#667eea',      # Modern purple-blue
+            'secondary': '#764ba2',    # Deep purple
+            'accent': '#f093fb',       # Light pink
+            'background': '#0f0f23',   # Very dark blue
+            'surface': '#1a1a2e',      # Dark blue-gray
+            'card': '#16213e',         # Card background
+            'text_primary': '#ffffff', # White text
+            'text_secondary': '#a0a9c0', # Gray text
+            'success': '#4ade80',      # Green
+            'warning': '#f59e0b',      # Orange
+            'error': '#ef4444'         # Red
+        }
+        
+        self.root.configure(bg=self.colors['background'])
 
         # Try setting an icon if desired:
         logo_image_path = get_resource_path("app_logo.ico")
@@ -2367,64 +2600,285 @@ class ModeSelectionPage:
         except Exception as e:
             print(f"Failed to load logo: {e}")
 
-        self.background_image_path = get_resource_path("hv_background.png")
+        self.create_modern_mode_layout()
 
-        # Create canvas for background
-        self.bg_canvas = tk.Canvas(self.root, highlightthickness=0)
+    def create_modern_mode_layout(self):
+        """Create modern mode selection layout"""
+        # Create main container
+        self.main_frame = tk.Frame(self.root, bg=self.colors['background'])
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Create gradient background
+        self.bg_canvas = tk.Canvas(
+            self.main_frame, 
+            highlightthickness=0,
+            bg=self.colors['background']
+        )
         self.bg_canvas.pack(fill=tk.BOTH, expand=True)
 
-        # Attempt to load the background image
-        if os.path.exists(self.background_image_path):
-            try:
-                image = Image.open(self.background_image_path)
-                screen_width = self.root.winfo_screenwidth()
-                screen_height = self.root.winfo_screenheight()
-                image = image.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
-                self.bg_image = ImageTk.PhotoImage(image)
-                self.bg_canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_image)
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to load background image:\n{self.background_image_path}\n{e}")
-        else:
-            messagebox.showerror("Error", f"Background image not found at:\n{self.background_image_path}")
+        # Setup gradient
+        self.root.bind('<Configure>', self.on_window_resize)
+        self.root.after(100, self.create_gradient_background)
+        
+        # Create content
+        self.root.after(200, self.create_mode_content)
 
-        # Create buttons
-        button_style = {
-            "bg": "white",
-            "fg": "black",
-            "font": ("Helvetica", 14, "bold"),
-            "relief": tk.FLAT,
-            "cursor": "hand2",
-            "width": 15,
-            "height": 2,
-        }
+    def create_gradient_background(self):
+        """Create a modern gradient background"""
+        self.bg_canvas.delete("gradient")
+        
+        width = self.bg_canvas.winfo_width()
+        height = self.bg_canvas.winfo_height()
+        
+        if width <= 1 or height <= 1:
+            self.root.after(100, self.create_gradient_background)
+            return
+        
+        # Create gradient strips
+        for i in range(height):
+            ratio = i / height
+            
+            # Interpolate between colors
+            r1, g1, b1 = self.hex_to_rgb(self.colors['background'])
+            r2, g2, b2 = self.hex_to_rgb(self.colors['surface'])
+            
+            r = int(r1 + (r2 - r1) * ratio)
+            g = int(g1 + (g2 - g1) * ratio)
+            b = int(b1 + (b2 - b1) * ratio)
+            
+            color = f"#{r:02x}{g:02x}{b:02x}"
+            
+            self.bg_canvas.create_line(
+                0, i, width, i, 
+                fill=color, 
+                width=1,
+                tags="gradient"
+            )
 
-        # Hand Gesture Only
-        self.gesture_button = tk.Button(
+    def hex_to_rgb(self, hex_color):
+        """Convert hex color to RGB tuple"""
+        hex_color = hex_color.lstrip('#')
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+    def on_window_resize(self, event):
+        """Handle window resize to update gradient"""
+        if event.widget == self.root:
+            self.root.after(50, self.create_gradient_background)
+
+    def create_mode_content(self):
+        """Create mode selection content"""
+        # Create mode selection card
+        card_frame = tk.Frame(
             self.bg_canvas,
-            text="Hand Gesture",
+            bg=self.colors['card'],
+            relief=tk.FLAT,
+            bd=0
+        )
+        
+        # Title
+        title_label = tk.Label(
+            card_frame,
+            text="🎯 Select Control Mode",
+            font=("Segoe UI", 36, "bold"),
+            fg=self.colors['primary'],
+            bg=self.colors['card']
+        )
+        title_label.pack(pady=(40, 20))
+        
+        # Subtitle
+        subtitle_label = tk.Label(
+            card_frame,
+            text="Choose how you want to control your computer",
+            font=("Segoe UI", 16),
+            fg=self.colors['text_secondary'],
+            bg=self.colors['card']
+        )
+        subtitle_label.pack(pady=(0, 40))
+        
+        # Mode selection frame
+        modes_frame = tk.Frame(card_frame, bg=self.colors['card'])
+        modes_frame.pack(pady=30)
+        
+        # Hand Gesture Mode Card
+        gesture_card = self.create_mode_card(
+            modes_frame,
+            icon="🖐️",
+            title="Hand Gesture Only",
+            description="Control with hand movements\nPerfect for silent operation",
+            features=["Silent operation", "Hand tracking", "Gesture recognition"],
             command=self.launch_gesture_only,
-            **button_style
+            column=0
         )
-        self.gesture_button.place(relx=0.4, rely=0.5, anchor=tk.CENTER)
-
-        # Hand & Voice
-        self.gesture_voice_button = tk.Button(
-            self.bg_canvas,
-            text="Hand & Voice",
+        
+        # Hand & Voice Mode Card
+        voice_card = self.create_mode_card(
+            modes_frame,
+            icon="🎤",
+            title="Hand & Voice",
+            description="Full control with both hands and voice\nMaximum functionality",
+            features=["Voice commands", "Hand gestures", "1500+ commands"],
             command=self.launch_hand_and_voice,
-            **button_style
+            column=1
         )
-        self.gesture_voice_button.place(relx=0.6, rely=0.5, anchor=tk.CENTER)
-
-        # Go Back
-        self.go_back_button = tk.Button(
-            self.bg_canvas,
-            text="Go Back",
+        
+        # Navigation buttons
+        nav_frame = tk.Frame(card_frame, bg=self.colors['card'])
+        nav_frame.pack(pady=(40, 40))
+        
+        # Go Back button
+        back_button = self.create_modern_button(
+            nav_frame,
+            text="← Go Back",
             command=self.go_back,
-            **button_style
+            primary=False
         )
-        # Position the "Go Back" button as desired; here it's placed near bottom center
-        self.go_back_button.place(relx=0.5, rely=0.7, anchor=tk.CENTER)
+        back_button.pack()
+        
+        # Position the card in center
+        self.bg_canvas.create_window(
+            self.bg_canvas.winfo_reqwidth() // 2,
+            self.bg_canvas.winfo_reqheight() // 2,
+            window=card_frame,
+            anchor=tk.CENTER
+        )
+        
+        # Update card position when canvas size changes
+        self.bg_canvas.bind('<Configure>', self.center_card)
+
+    def create_mode_card(self, parent, icon, title, description, features, command, column):
+        """Create a mode selection card"""
+        card = tk.Frame(
+            parent,
+            bg=self.colors['surface'],
+            relief=tk.FLAT,
+            bd=0
+        )
+        card.grid(row=0, column=column, padx=30, pady=20, sticky="nsew")
+        
+        # Icon
+        icon_label = tk.Label(
+            card,
+            text=icon,
+            font=("Segoe UI", 48),
+            bg=self.colors['surface'],
+            fg=self.colors['accent']
+        )
+        icon_label.pack(pady=(30, 20))
+        
+        # Title
+        title_label = tk.Label(
+            card,
+            text=title,
+            font=("Segoe UI", 18, "bold"),
+            bg=self.colors['surface'],
+            fg=self.colors['text_primary']
+        )
+        title_label.pack(pady=(0, 15))
+        
+        # Description
+        desc_label = tk.Label(
+            card,
+            text=description,
+            font=("Segoe UI", 12),
+            bg=self.colors['surface'],
+            fg=self.colors['text_secondary'],
+            justify=tk.CENTER
+        )
+        desc_label.pack(pady=(0, 20))
+        
+        # Features
+        for feature in features:
+            feature_label = tk.Label(
+                card,
+                text=f"✓ {feature}",
+                font=("Segoe UI", 11),
+                bg=self.colors['surface'],
+                fg=self.colors['success'],
+                anchor="w"
+            )
+            feature_label.pack(pady=2, padx=30, fill=tk.X)
+        
+        # Select button
+        select_button = self.create_modern_button(
+            card,
+            text="Select Mode",
+            command=command,
+            primary=True
+        )
+        select_button.pack(pady=(30, 30))
+        
+        # Add hover effects to the card
+        card.bind("<Enter>", lambda e: self.on_card_hover(card, True))
+        card.bind("<Leave>", lambda e: self.on_card_hover(card, False))
+        
+        return card
+
+    def on_card_hover(self, card, entering):
+        """Handle card hover effects"""
+        if entering:
+            card.config(bg=self.colors['card'])
+            for child in card.winfo_children():
+                if isinstance(child, tk.Label):
+                    child.config(bg=self.colors['card'])
+        else:
+            card.config(bg=self.colors['surface'])
+            for child in card.winfo_children():
+                if isinstance(child, tk.Label):
+                    child.config(bg=self.colors['surface'])
+
+    def create_modern_button(self, parent, text, command, primary=True):
+        """Create a modern styled button"""
+        if primary:
+            bg_color = self.colors['primary']
+            fg_color = self.colors['text_primary']
+            active_bg = self.colors['secondary']
+        else:
+            bg_color = self.colors['surface']
+            fg_color = self.colors['text_primary']
+            active_bg = self.colors['card']
+        
+        button = tk.Button(
+            parent,
+            text=text,
+            command=command,
+            font=("Segoe UI", 12, "bold"),
+            bg=bg_color,
+            fg=fg_color,
+            activebackground=active_bg,
+            activeforeground=fg_color,
+            relief=tk.FLAT,
+            bd=0,
+            cursor="hand2",
+            padx=30,
+            pady=12
+        )
+        
+        # Add hover effects
+        button.bind("<Enter>", lambda e: self.on_button_hover(button, True, primary))
+        button.bind("<Leave>", lambda e: self.on_button_hover(button, False, primary))
+        
+        return button
+
+    def on_button_hover(self, button, entering, primary):
+        """Handle button hover effects"""
+        if entering:
+            if primary:
+                button.config(bg=self.colors['secondary'])
+            else:
+                button.config(bg=self.colors['card'])
+        else:
+            if primary:
+                button.config(bg=self.colors['primary'])
+            else:
+                button.config(bg=self.colors['surface'])
+
+    def center_card(self, event):
+        """Center the card when canvas is resized"""
+        canvas_width = event.width
+        canvas_height = event.height
+        
+        # Update card position
+        self.bg_canvas.coords("all", canvas_width // 2, canvas_height // 2)
 
     def launch_gesture_only(self):
         """
@@ -2516,7 +2970,7 @@ class HandGestureApp:
         self.footer_label_center = tk.Label(self.footer,
             text="Developed by [Thiha Naing], 2024",
             bg="#FFFFFF", fg="black", font=("Arial", 10, "italic"))
-        self.footer_label_right = tk.Label(self.footer, text="Version: 1.0.0",
+        self.footer_label_right = tk.Label(self.footer, text=f"Version: {settings.VERSION}",
                                            bg="#FFFFFF", fg="black", font=("Arial", 10, "italic"))
 
         self.adjust_layout()
@@ -2685,9 +3139,24 @@ class HandVoiceControlApp:
         self.root = root
         self.root.title("Hand Gesture and Voice-Controlled Computer System [HV-SYSTEM]")
         self.root.state('zoomed')  # Start maximized
-        self.root.configure(bg="#1e1e2f")  # Unified dark theme (matching background)
+        
+        # Modern color scheme
+        self.colors = {
+            'primary': '#667eea',      # Modern purple-blue
+            'secondary': '#764ba2',    # Deep purple
+            'accent': '#f093fb',       # Light pink
+            'background': '#0f0f23',   # Very dark blue
+            'surface': '#1a1a2e',      # Dark blue-gray
+            'card': '#16213e',         # Card background
+            'text_primary': '#ffffff', # White text
+            'text_secondary': '#a0a9c0', # Gray text
+            'success': '#4ade80',      # Green
+            'warning': '#f59e0b',      # Orange
+            'error': '#ef4444'         # Red
+        }
+        
+        self.root.configure(bg=self.colors['background'])
 
-        # === Store paths as class attributes ===
         # === Set Application Icon ===
         logo_image_path = get_resource_path("app_logo.ico")
         try:
@@ -2695,144 +3164,407 @@ class HandVoiceControlApp:
         except Exception as e:
             print(f"Failed to load application logo: {e}")
 
-        self.background_image_path = get_resource_path("hv_background.png")
+        self.create_modern_main_layout()
 
-        # === Set Background Image ===
-        self.bg_canvas = tk.Canvas(self.root, highlightthickness=0)
+    def create_modern_main_layout(self):
+        """Create the modern main application layout"""
+        # Create main container
+        self.main_frame = tk.Frame(self.root, bg=self.colors['background'])
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Create gradient background
+        self.bg_canvas = tk.Canvas(
+            self.main_frame,
+            highlightthickness=0,
+            bg=self.colors['background']
+        )
         self.bg_canvas.pack(fill=tk.BOTH, expand=True)
 
-        # === Attempt to load the background image ===
-        self.bg_image = None
-        if os.path.exists(self.background_image_path):
-            try:
-                image = Image.open(self.background_image_path)
-                screen_width = self.root.winfo_screenwidth()
-                screen_height = self.root.winfo_screenheight()
-                image = image.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
-                self.bg_image = ImageTk.PhotoImage(image)
-                self.bg_canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_image)
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to load background image:\n{self.background_image_path}\n{e}")
-        else:
-            messagebox.showerror("Error", f"Background image not found at:\n{self.background_image_path}")
+        # Setup gradient
+        self.root.bind('<Configure>', self.on_window_resize)
+        self.root.after(100, self.create_gradient_background)
+        
+        # Create the interface elements
+        self.root.after(200, self.create_interface_elements)
+        
+        # Auto-start the system
+        self.root.after(500, self.start_system)
 
-        # === Color Scheme ===
-        button_bg_color = "#FFFFFF"  # Slightly lighter than footer
-        button_active_color = "#FFFFFF"
-        footer_bg_color = "#FFFFFF"
-        text_box_bg_color = "#FFFFFF"
-        text_box_fg_color = "#FFFFFF"
+    def create_gradient_background(self):
+        """Create a modern gradient background"""
+        self.bg_canvas.delete("gradient")
+        
+        width = self.bg_canvas.winfo_width()
+        height = self.bg_canvas.winfo_height()
+        
+        if width <= 1 or height <= 1:
+            self.root.after(100, self.create_gradient_background)
+            return
+        
+        # Create gradient strips
+        for i in range(height):
+            ratio = i / height
+            
+            # Interpolate between colors
+            r1, g1, b1 = self.hex_to_rgb(self.colors['background'])
+            r2, g2, b2 = self.hex_to_rgb(self.colors['surface'])
+            
+            r = int(r1 + (r2 - r1) * ratio)
+            g = int(g1 + (g2 - g1) * ratio)
+            b = int(b1 + (b2 - b1) * ratio)
+            
+            color = f"#{r:02x}{g:02x}{b:02x}"
+            
+            self.bg_canvas.create_line(
+                0, i, width, i,
+                fill=color,
+                width=1,
+                tags="gradient"
+            )
 
-        # === Control Buttons with Modern Styling ===
-        button_style = {
-            "bg": button_bg_color,
-            "fg": "black",
-            "font": ("Helvetica", 11, "bold"),
-            "relief": tk.FLAT,
-            "activebackground": button_active_color,
-            "activeforeground": "black",
-            "cursor": "hand2"
-        }
+    def hex_to_rgb(self, hex_color):
+        """Convert hex color to RGB tuple"""
+        hex_color = hex_color.lstrip('#')
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
-        self.start_button = tk.Button(
-            self.bg_canvas, text="Start", command=self.start_system, width=12, **button_style
-        )
-        self.stop_button = tk.Button(
-            self.bg_canvas, text="Stop", command=self.stop_system, width=12, **button_style
-        )
+    def on_window_resize(self, event):
+        """Handle window resize to update gradient"""
+        if event.widget == self.root:
+            self.root.after(50, self.create_gradient_background)
+            self.root.after(100, self.adjust_layout)
 
-        # === NEW BUTTON: Go Back ===
-        self.go_back_button = tk.Button(
+    def create_interface_elements(self):
+        """Create all interface elements with modern styling"""
+        # Status indicator
+        self.create_status_indicator()
+        
+        # Control panel
+        self.create_control_panel()
+        
+        # Video feed area
+        self.create_video_feed_area()
+        
+        # Transcription area
+        self.create_transcription_area()
+        
+        # Footer
+        self.create_modern_footer()
+        
+        # Initial layout
+        self.adjust_layout()
+
+    def create_status_indicator(self):
+        """Create modern status indicator"""
+        self.status_frame = tk.Frame(
             self.bg_canvas,
-            text="Go Back",
-            command=self.go_back,       # Method defined below
-            width=12,
-            **button_style
-        )
-
-        # === Video Feed Placeholder ===
-        self.canvas = tk.Canvas(
-            self.bg_canvas, bg=text_box_bg_color, highlightbackground="#1abc9c"
-        )
-
-        # === Transcription Text Area with Enhanced Styling ===
-        self.transcription_text = scrolledtext.ScrolledText(
-            self.bg_canvas,
-            wrap=tk.WORD,
-            font=("Courier New", 12),
-            bg=text_box_bg_color,
-            fg="#000000",  # Set text color to black
+            bg=self.colors['card'],
             relief=tk.FLAT,
-            insertbackground="black"
+            bd=0
         )
+        
+        # Status title
+        status_label = tk.Label(
+            self.status_frame,
+            text="🔧 System Status",
+            font=("Segoe UI", 14, "bold"),
+            bg=self.colors['card'],
+            fg=self.colors['text_primary']
+        )
+        status_label.pack(pady=(10, 5))
+        
+        # Status indicator
+        self.status_indicator = tk.Label(
+            self.status_frame,
+            text="● READY",
+            font=("Segoe UI", 12, "bold"),
+            bg=self.colors['card'],
+            fg=self.colors['warning']
+        )
+        self.status_indicator.pack(pady=(0, 10))
 
-        # === Footer with Enhanced Design ===
-        self.footer = tk.Frame(self.bg_canvas, bg=footer_bg_color)
+    def create_control_panel(self):
+        """Create modern control panel"""
+        self.control_frame = tk.Frame(
+            self.bg_canvas,
+            bg=self.colors['card'],
+            relief=tk.FLAT,
+            bd=0
+        )
+        
+        # Title
+        control_title = tk.Label(
+            self.control_frame,
+            text="🎮 Control Panel",
+            font=("Segoe UI", 14, "bold"),
+            bg=self.colors['card'],
+            fg=self.colors['text_primary']
+        )
+        control_title.pack(pady=(15, 10))
+        
+        # Button container
+        button_container = tk.Frame(self.control_frame, bg=self.colors['card'])
+        button_container.pack(pady=10)
+        
+        # Control buttons
+        self.start_button = self.create_modern_button(
+            button_container,
+            text="🚀 Start System",
+            command=self.start_system,
+            primary=True,
+            icon_color=self.colors['success']
+        )
+        self.start_button.pack(side=tk.LEFT, padx=5)
+        
+        self.stop_button = self.create_modern_button(
+            button_container,
+            text="⏹️ Stop System",
+            command=self.stop_system,
+            primary=False,
+            icon_color=self.colors['error']
+        )
+        self.stop_button.pack(side=tk.LEFT, padx=5)
+        
+        self.go_back_button = self.create_modern_button(
+            button_container,
+            text="← Go Back",
+            command=self.go_back,
+            primary=False
+        )
+        self.go_back_button.pack(side=tk.LEFT, padx=5)
+
+    def create_video_feed_area(self):
+        """Create modern video feed area"""
+        self.video_frame = tk.Frame(
+            self.bg_canvas,
+            bg=self.colors['card'],
+            relief=tk.FLAT,
+            bd=0
+        )
+        
+        # Video title
+        video_title = tk.Label(
+            self.video_frame,
+            text="📹 Camera Feed",
+            font=("Segoe UI", 14, "bold"),
+            bg=self.colors['card'],
+            fg=self.colors['text_primary']
+        )
+        video_title.pack(pady=(15, 10))
+        
+        # Video canvas with modern styling
+        self.canvas = tk.Canvas(
+            self.video_frame,
+            bg=self.colors['surface'],
+            highlightbackground=self.colors['primary'],
+            highlightthickness=2,
+            relief=tk.FLAT
+        )
+        self.canvas.pack(pady=(0, 15), padx=15)
+
+    def create_transcription_area(self):
+        """Create modern transcription area"""
+        self.transcription_frame = tk.Frame(
+            self.bg_canvas,
+            bg=self.colors['card'],
+            relief=tk.FLAT,
+            bd=0
+        )
+        
+        # Transcription title
+        transcription_title = tk.Label(
+            self.transcription_frame,
+            text="🎤 Voice Transcription",
+            font=("Segoe UI", 14, "bold"),
+            bg=self.colors['card'],
+            fg=self.colors['text_primary']
+        )
+        transcription_title.pack(pady=(15, 10))
+        
+        # Transcription text area with modern styling
+        self.transcription_text = scrolledtext.ScrolledText(
+            self.transcription_frame,
+            wrap=tk.WORD,
+            font=("Consolas", 11),
+            bg=self.colors['surface'],
+            fg=self.colors['text_primary'],
+            relief=tk.FLAT,
+            insertbackground=self.colors['text_primary'],
+            selectbackground=self.colors['primary'],
+            selectforeground=self.colors['text_primary'],
+            bd=0
+        )
+        self.transcription_text.pack(pady=(0, 15), padx=15, fill=tk.BOTH, expand=True)
+
+    def create_modern_footer(self):
+        """Create modern footer"""
+        self.footer = tk.Frame(
+            self.bg_canvas,
+            bg=self.colors['card'],
+            relief=tk.FLAT,
+            bd=0
+        )
+        
+        # Footer content
+        footer_content = tk.Frame(self.footer, bg=self.colors['card'])
+        footer_content.pack(expand=True, fill=tk.X, pady=10)
 
         self.footer_label_left = tk.Label(
-            self.footer,
-            text="Albukhary International University",
-            bg=footer_bg_color,
-            fg="black",
-            font=("Arial", 10, "italic")
+            footer_content,
+            text="🎓 Albukhary International University",
+            bg=self.colors['card'],
+            fg=self.colors['text_secondary'],
+            font=("Segoe UI", 10)
         )
+        self.footer_label_left.pack(side=tk.LEFT, padx=20)
 
         self.footer_label_center = tk.Label(
-            self.footer,
-            text="Developed by [Thiha Naing], 2024",
-            bg=footer_bg_color,
-            fg="black",
-            font=("Arial", 10, "italic")
+            footer_content,
+            text="💻 Developed by [Thiha Naing], 2024",
+            bg=self.colors['card'],
+            fg=self.colors['text_secondary'],
+            font=("Segoe UI", 10)
         )
+        self.footer_label_center.pack(side=tk.LEFT, expand=True)
 
         self.footer_label_right = tk.Label(
-            self.footer,
-            text="Version: 1.0.0",
-            bg=footer_bg_color,
-            fg="black",
-            font=("Arial", 10, "italic")
+            footer_content,
+            text=f"🔖 Version: {settings.VERSION}",
+            bg=self.colors['card'],
+            fg=self.colors['text_secondary'],
+            font=("Segoe UI", 10)
         )
+        self.footer_label_right.pack(side=tk.RIGHT, padx=20)
 
-        self.adjust_layout()  # Adjust layout initially
-        self.root.bind("<Configure>", self.adjust_layout)
-        self.root.after(0, self.start_system)
+    def create_modern_button(self, parent, text, command, primary=True, icon_color=None):
+        """Create a modern styled button"""
+        if primary:
+            bg_color = self.colors['primary']
+            fg_color = self.colors['text_primary']
+            active_bg = self.colors['secondary']
+        else:
+            bg_color = self.colors['surface']
+            fg_color = self.colors['text_primary']
+            active_bg = self.colors['card']
+        
+        button = tk.Button(
+            parent,
+            text=text,
+            command=command,
+            font=("Segoe UI", 10, "bold"),
+            bg=bg_color,
+            fg=fg_color,
+            activebackground=active_bg,
+            activeforeground=fg_color,
+            relief=tk.FLAT,
+            bd=0,
+            cursor="hand2",
+            padx=20,
+            pady=8
+        )
+        
+        # Add hover effects
+        button.bind("<Enter>", lambda e: self.on_button_hover(button, True, primary))
+        button.bind("<Leave>", lambda e: self.on_button_hover(button, False, primary))
+        
+        return button
+
+    def on_button_hover(self, button, entering, primary):
+        """Handle button hover effects"""
+        if entering:
+            if primary:
+                button.config(bg=self.colors['secondary'])
+            else:
+                button.config(bg=self.colors['card'])
+        else:
+            if primary:
+                button.config(bg=self.colors['primary'])
+            else:
+                button.config(bg=self.colors['surface'])
+
+    def update_status(self, status, color_key='warning'):
+        """Update the status indicator"""
+        if hasattr(self, 'status_indicator'):
+            self.status_indicator.config(
+                text=f"● {status}",
+                fg=self.colors[color_key]
+            )
 
     def adjust_layout(self, event=None):
         """Adjust the layout for resizing and initial screen setup."""
         screen_width = self.root.winfo_width()
         screen_height = self.root.winfo_height()
 
-        # Adjust background image to fit the screen
-        try:
-            image = Image.open(self.background_image_path)
-            image = image.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
-            self.bg_image = ImageTk.PhotoImage(image)
-            self.bg_canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_image)
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to load background image:\n{self.background_image_path}\n{e}")
+        # Skip if elements are not yet created
+        if not hasattr(self, 'status_frame'):
+            return
 
-        # Adjust button and widget positions
-        self.start_button.place(relx=0.35, rely=0.05, anchor=tk.CENTER)
-        self.stop_button.place(relx=0.65, rely=0.05, anchor=tk.CENTER)
-        self.go_back_button.place(relx=0.50, rely=0.05, anchor=tk.CENTER)
-
-        # === Camera Frame (Video Feed Placeholder) ===
-        # Adjust size and position for the camera frame
-        camera_width = screen_width * 0.33  # 33% of screen width
-        camera_height = screen_height * 0.45  # 45% of screen height
-        self.canvas.place(relx=0.3, rely=0.5, anchor=tk.CENTER, width=camera_width, height=camera_height)
-
-        # === Transcription Text Box ===
-        # Adjust size and position for the transcription text box
-        text_box_width = screen_width * 0.33  # 33% of screen width
-        text_box_height = screen_height * 0.45  # 45% of screen height
-        self.transcription_text.place(relx=0.75, rely=0.5, anchor=tk.CENTER, width=text_box_width, height=text_box_height)
-
-        # Adjust footer layout
-        self.footer.place(relx=0, rely=1, anchor=tk.SW, width=screen_width, height=60)
-        self.footer_label_left.pack(side=tk.LEFT, padx=20)
-        self.footer_label_center.pack(side=tk.LEFT, expand=True)
-        self.footer_label_right.pack(side=tk.RIGHT, padx=20)
+        # Layout configuration
+        padding = 20
+        card_height = 150
+        
+        # Status indicator - top left
+        if hasattr(self, 'status_frame'):
+            self.status_frame.place(
+                x=padding, 
+                y=padding, 
+                width=250, 
+                height=100
+            )
+        
+        # Control panel - top center
+        if hasattr(self, 'control_frame'):
+            self.control_frame.place(
+                relx=0.5, 
+                y=padding, 
+                anchor=tk.N,
+                width=400, 
+                height=120
+            )
+        
+        # Video feed - left side
+        if hasattr(self, 'video_frame'):
+            video_width = int(screen_width * 0.4)
+            video_height = int(screen_height * 0.6)
+            self.video_frame.place(
+                x=padding,
+                y=140,
+                width=video_width,
+                height=video_height
+            )
+            
+            # Adjust canvas size within video frame
+            if hasattr(self, 'canvas'):
+                canvas_width = video_width - 30
+                canvas_height = video_height - 80
+                self.canvas.config(width=canvas_width, height=canvas_height)
+        
+        # Transcription area - right side
+        if hasattr(self, 'transcription_frame'):
+            trans_width = int(screen_width * 0.55)
+            trans_height = int(screen_height * 0.6)
+            trans_x = screen_width - trans_width - padding
+            self.transcription_frame.place(
+                x=trans_x,
+                y=140,
+                width=trans_width,
+                height=trans_height
+            )
+            
+            # Adjust text area size
+            if hasattr(self, 'transcription_text'):
+                text_width = trans_width - 30
+                text_height = trans_height - 80
+                self.transcription_text.config(width=text_width//8, height=text_height//15)
+        
+        # Footer - bottom
+        if hasattr(self, 'footer'):
+            footer_y = screen_height - 70
+            self.footer.place(
+                x=0, 
+                y=footer_y, 
+                width=screen_width, 
+                height=70
+            )
 
 
     def start_system(self):
@@ -2840,15 +3572,24 @@ class HandVoiceControlApp:
         if not running_event.is_set() and not hand_running:
             running_event.set()
             hand_running = True
+            
+            # Update status
+            self.update_status("STARTING...", 'warning')
 
             threading.Thread(target=self.run_hand_tracking, daemon=True).start()
             threading.Thread(target=lambda: asyncio.run(send_receive()), daemon=True).start()
             self.update_transcription()
+            
+            # Update status to active
+            self.root.after(1000, lambda: self.update_status("ACTIVE", 'success'))
 
     def stop_system(self):
         global hand_running
         running_event.clear()
         hand_running = False
+        
+        # Update status
+        self.update_status("STOPPED", 'error')
 
         if cap is not None:
             cap.release()

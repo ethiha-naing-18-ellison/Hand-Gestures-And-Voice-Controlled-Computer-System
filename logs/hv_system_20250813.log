@@ -1,0 +1,7 @@
+2025-08-13 21:54:48,840 - hv_system - INFO - test_security_improvements.py:31 - Test log message - Configuration system working
+2025-08-13 21:54:48,840 - hv_system - WARNING - test_security_improvements.py:32 - Test warning message
+2025-08-13 21:54:48,864 - hv_system - WARNING - security.py:45 - Blocked potentially dangerous command: rm -rf /; dangerous command
+2025-08-13 21:54:48,864 - hv_system - WARNING - security.py:70 - Blocked unauthorized system command: rm -rf /
+2025-08-13 21:55:47,823 - hv_system - INFO - application_finder.py:42 - Found notepad at: C:\WINDOWS\system32\notepad.exe
+2025-08-13 21:56:03,348 - hv_system - WARNING - application_finder.py:47 - Could not find application: calculator
+2025-08-13 21:56:03,364 - hv_system - INFO - application_finder.py:42 - Found chrome at: C:\Program Files\Google\Chrome\Application\chrome.exe

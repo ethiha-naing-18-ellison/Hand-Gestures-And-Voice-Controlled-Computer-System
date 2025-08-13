@@ -7,9 +7,13 @@ sys.setrecursionlimit(sys.getrecursionlimit() * 5)
 # Import required for data files
 import os
 from pathlib import Path
+import mediapipe
 
 # Get current directory
 current_dir = os.getcwd()
+
+# Get MediaPipe installation path
+mediapipe_path = os.path.dirname(mediapipe.__file__)
 
 a = Analysis(
     ['HV_SYSTEM.py'],
@@ -22,10 +26,19 @@ a = Analysis(
         ('config', 'config'),
         ('utils', 'utils'),
         ('env.example', '.'),
+        # Include MediaPipe modules directory
+        (os.path.join(mediapipe_path, 'modules'), 'mediapipe/modules'),
     ],
     hiddenimports=[
         'cv2',
         'mediapipe', 
+        'mediapipe.python.solutions.hands',
+        'mediapipe.python.solutions.drawing_utils',
+        'mediapipe.python.solution_base',
+        'matplotlib',
+        'matplotlib.pyplot',
+        'matplotlib.backends',
+        'matplotlib.backends.backend_tkagg',
         'tkinter',
         'tkinter.scrolledtext',
         'tkinter.messagebox',
@@ -64,11 +77,10 @@ a = Analysis(
         'importlib_metadata',
         'zipp',
     ],
-    hookspath=[],
+    hookspath=['.'],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        'matplotlib',
         'scipy',
         'pandas',
         'pytest',
@@ -81,21 +93,26 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
-    name='HV_SYSTEM_v2.0',
+    exclude_binaries=True,
+    name='HV_SYSTEM_Fixed',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,  # Disable UPX to avoid compression issues
-    upx_exclude=[],
-    runtime_tmpdir=None,
-    console=False,  # Set to True for debugging if needed
+    upx=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    # icon='app_logo.ico',  # Commented out - no icon file available
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='HV_SYSTEM_Fixed',
 )
