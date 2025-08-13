@@ -9,6 +9,48 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+class ThemeColors:
+    """Theme color definitions for the application"""
+    
+    # Primary Colors
+    PRIMARY = "#1abc9c"          # Main theme color (teal)
+    PRIMARY_DARK = "#16a085"     # Darker shade of primary
+    PRIMARY_LIGHT = "#48c9b0"    # Lighter shade of primary
+    
+    # Secondary Colors
+    SECONDARY = "#2ecc71"        # Green for success/positive actions
+    SECONDARY_DARK = "#27ae60"   # Darker green
+    SECONDARY_LIGHT = "#58d68d"  # Lighter green
+    
+    # Accent Colors
+    ACCENT = "#2980b9"           # Blue for links and highlights
+    ACCENT_DARK = "#21618c"      # Darker blue
+    ACCENT_LIGHT = "#5dade2"     # Lighter blue
+    
+    # Text Colors
+    TEXT_PRIMARY = "#34495e"     # Dark gray for primary text
+    TEXT_SECONDARY = "#7f8c8d"   # Medium gray for secondary text
+    TEXT_LIGHT = "#bdc3c7"       # Light gray for disabled text
+    
+    # Background Colors
+    BG_PRIMARY = "#ffffff"       # White background
+    BG_SECONDARY = "#f8f9fa"     # Light gray background
+    BG_DARK = "#2c3e50"          # Dark background
+    BG_DARKER = "#1a252f"        # Darker background
+    
+    # Status Colors
+    SUCCESS = "#27ae60"          # Success green
+    WARNING = "#f39c12"          # Warning orange
+    ERROR = "#e74c3c"            # Error red
+    INFO = "#3498db"             # Info blue
+    
+    # UI Element Colors
+    BUTTON_BG = "#ffffff"        # Button background
+    BUTTON_FG = "#000000"        # Button text
+    BUTTON_HOVER = "#f8f9fa"     # Button hover
+    CANVAS_BG = "#ffffff"        # Canvas background
+    CANVAS_BORDER = "#1abc9c"    # Canvas border
+
 class Settings:
     """Application settings loaded from environment variables"""
     
@@ -32,7 +74,7 @@ class Settings:
     FRAME_REDUCTION: int = int(os.getenv('FRAME_REDUCTION', '100'))
     
     # UI Configuration
-    DEFAULT_THEME: str = os.getenv('DEFAULT_THEME', 'dark')
+    DEFAULT_THEME: str = os.getenv('DEFAULT_THEME', 'light')
     WINDOW_TITLE: str = os.getenv('WINDOW_TITLE', 'Hand Gesture and Voice Control System')
     VERSION: str = os.getenv('VERSION', '2.0.0')
     

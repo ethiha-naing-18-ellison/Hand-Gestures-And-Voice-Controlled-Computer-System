@@ -32,7 +32,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 
 # Import our new configuration and utilities
-from config.settings import settings
+from config.settings import settings, ThemeColors
 from utils.logger import logger
 from utils.security import security
 from utils.application_finder import app_finder
@@ -1708,22 +1708,22 @@ class UserInterface:
         self.root.title(f"{settings.WINDOW_TITLE} - Setup")
         self.root.state('zoomed')
         
-        # Modern color scheme
+        # Use theme colors from settings
         self.colors = {
-            'primary': '#667eea',      # Modern purple-blue
-            'secondary': '#764ba2',    # Deep purple
-            'accent': '#f093fb',       # Light pink
-            'background': '#0f0f23',   # Very dark blue
-            'surface': '#1a1a2e',      # Dark blue-gray
-            'card': '#16213e',         # Card background
-            'text_primary': '#ffffff', # White text
-            'text_secondary': '#a0a9c0', # Gray text
-            'success': '#4ade80',      # Green
-            'warning': '#f59e0b',      # Orange
-            'error': '#ef4444'         # Red
+            'primary': ThemeColors.PRIMARY,
+            'secondary': ThemeColors.SECONDARY,
+            'accent': ThemeColors.ACCENT,
+            'background': ThemeColors.BG_DARK,
+            'surface': ThemeColors.BG_DARKER,
+            'card': ThemeColors.BG_SECONDARY,
+            'text_primary': ThemeColors.TEXT_PRIMARY,
+            'text_secondary': ThemeColors.TEXT_SECONDARY,
+            'success': ThemeColors.SUCCESS,
+            'warning': ThemeColors.WARNING,
+            'error': ThemeColors.ERROR
         }
         
-        self.root.configure(bg=self.colors['background'])
+        self.root.configure(bg=ThemeColors.BG_DARK)
 
         # Set application icon
         logo_image_path = get_resource_path("app_logo.ico")
@@ -1966,7 +1966,7 @@ class UserInterface:
         manual_window = tk.Toplevel(self.root)
         manual_window.title("User Manual Guidelines")
         manual_window.state('zoomed')
-        manual_window.configure(bg="#1e1e2f")
+        manual_window.configure(bg=ThemeColors.BG_DARK)
 
         # Attempt to set an icon for the manual window
         logo_image_path = get_resource_path("app_logo.ico")
@@ -1975,25 +1975,16 @@ class UserInterface:
         except Exception as e:
             print(f"Failed to load manual window icon: {e}")
 
-        # Load the background image
-        background_image_path = get_resource_path("hv_background.png")
-        bg_canvas = tk.Canvas(manual_window, highlightthickness=0)
+        # Create background canvas with theme colors
+        bg_canvas = tk.Canvas(
+            manual_window, 
+            highlightthickness=0,
+            bg=ThemeColors.BG_DARK
+        )
         bg_canvas.pack(fill=tk.BOTH, expand=True)
 
-        # Resize the background image to fit the new window
-        screen_width = manual_window.winfo_screenwidth()
-        screen_height = manual_window.winfo_screenheight()
-
-        if os.path.exists(background_image_path):
-            try:
-                manual_bg = Image.open(background_image_path)
-                manual_bg = manual_bg.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
-                self.manual_bg_image = ImageTk.PhotoImage(manual_bg)
-                bg_canvas.create_image(0, 0, anchor=tk.NW, image=self.manual_bg_image)
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to load background image:\n{background_image_path}\n{e}")
-        else:
-            messagebox.showerror("Error", f"Background image not found at:\n{background_image_path}")
+        # Create gradient background for manual window
+        self.create_manual_gradient_background(bg_canvas)
 
         # === Create a scrolled text area for the manual ===
         manual_text = scrolledtext.ScrolledText(
@@ -2002,36 +1993,37 @@ class UserInterface:
             font=("Helvetica", 12),
             width=70,
             height=40,
-            bg="white",
-            fg="black",
-            relief=tk.FLAT
+            bg=ThemeColors.BG_PRIMARY,
+            fg=ThemeColors.TEXT_PRIMARY,
+            relief=tk.FLAT,
+            insertbackground=ThemeColors.TEXT_PRIMARY
         )
         manual_text.place(relx=0.5, rely=0.45, anchor=tk.CENTER)
 
-        # Define styling "tags" for the scrolled text
+        # Define styling "tags" for the scrolled text using theme colors
         manual_text.tag_config(
             "title",
             font=("Helvetica", 18, "bold"),
-            foreground="#2ecc71",
+            foreground=ThemeColors.SECONDARY,
             justify="center",
             spacing3=15  # extra spacing after paragraph
         )
         manual_text.tag_config(
             "heading",
             font=("Helvetica", 14, "bold"),
-            foreground="#2980b9",
+            foreground=ThemeColors.ACCENT,
             spacing3=10
         )
         manual_text.tag_config(
             "body",
             font=("Helvetica", 12),
-            foreground="#34495e",
+            foreground=ThemeColors.TEXT_PRIMARY,
             spacing3=5
         )
         manual_text.tag_config(
             "image_desc",
             font=("Helvetica", 11, "italic"),
-            foreground="#7f8c8d",
+            foreground=ThemeColors.TEXT_SECONDARY,
             spacing3=5
         )
 
@@ -2067,6 +2059,40 @@ class UserInterface:
                 manual_text.insert(tk.END, f"[Image not found: {full_path}]\n", "body")
 
         # ===== MANUAL CONTENT =====
+
+    def create_manual_gradient_background(self, canvas):
+        """Create a gradient background for the manual window"""
+        canvas.delete("gradient")
+        
+        width = canvas.winfo_width()
+        height = canvas.winfo_height()
+        
+        if width <= 1 or height <= 1:
+            # Schedule retry if canvas not ready
+            canvas.after(100, lambda: self.create_manual_gradient_background(canvas))
+            return
+        
+        # Create gradient strips
+        for i in range(height):
+            # Create color transition from dark to primary
+            ratio = i / height
+            
+            # Interpolate between colors
+            r1, g1, b1 = self.hex_to_rgb(ThemeColors.BG_DARK)
+            r2, g2, b2 = self.hex_to_rgb(ThemeColors.PRIMARY)
+            
+            r = int(r1 + (r2 - r1) * ratio * 0.4)  # Subtle gradient
+            g = int(g1 + (g2 - g1) * ratio * 0.4)
+            b = int(b1 + (b2 - b1) * ratio * 0.4)
+            
+            color = f"#{r:02x}{g:02x}{b:02x}"
+            
+            canvas.create_line(
+                0, i, width, i, 
+                fill=color, 
+                width=1,
+                tags="gradient"
+            )
         manual_text.insert(tk.END, "USER MANUAL GUIDELINES\n", "title")
 
         manual_text.insert(tk.END, "1. OVERVIEW\n", "heading")
@@ -2550,11 +2576,13 @@ class UserInterface:
             bg_canvas,
             text="Close",
             command=manual_window.destroy,
-            bg="white",
-            fg="black",
+            bg=ThemeColors.BUTTON_BG,
+            fg=ThemeColors.BUTTON_FG,
             font=("Helvetica", 12, "bold"),
             relief=tk.FLAT,
-            cursor="hand2"
+            cursor="hand2",
+            activebackground=ThemeColors.BUTTON_HOVER,
+            activeforeground=ThemeColors.TEXT_PRIMARY
         )
         close_button.place(relx=0.45, rely=0.9, anchor=tk.CENTER)
 
@@ -2562,11 +2590,13 @@ class UserInterface:
             bg_canvas,
             text="Download",
             command=download_manual_as_pdf,
-            bg="white",
-            fg="black",
+            bg=ThemeColors.BUTTON_BG,
+            fg=ThemeColors.BUTTON_FG,
             font=("Helvetica", 12, "bold"),
             relief=tk.FLAT,
-            cursor="hand2"
+            cursor="hand2",
+            activebackground=ThemeColors.BUTTON_HOVER,
+            activeforeground=ThemeColors.TEXT_PRIMARY
         )
         download_button.place(relx=0.55, rely=0.9, anchor=tk.CENTER)
 
@@ -2576,22 +2606,22 @@ class ModeSelectionPage:
         self.root.title("Select Mode - Hand Gesture or Hand & Voice")
         self.root.state("zoomed")
         
-        # Use the same modern color scheme
+        # Use theme colors from settings
         self.colors = {
-            'primary': '#667eea',      # Modern purple-blue
-            'secondary': '#764ba2',    # Deep purple
-            'accent': '#f093fb',       # Light pink
-            'background': '#0f0f23',   # Very dark blue
-            'surface': '#1a1a2e',      # Dark blue-gray
-            'card': '#16213e',         # Card background
-            'text_primary': '#ffffff', # White text
-            'text_secondary': '#a0a9c0', # Gray text
-            'success': '#4ade80',      # Green
-            'warning': '#f59e0b',      # Orange
-            'error': '#ef4444'         # Red
+            'primary': ThemeColors.PRIMARY,
+            'secondary': ThemeColors.SECONDARY,
+            'accent': ThemeColors.ACCENT,
+            'background': ThemeColors.BG_DARK,
+            'surface': ThemeColors.BG_DARKER,
+            'card': ThemeColors.BG_SECONDARY,
+            'text_primary': ThemeColors.TEXT_PRIMARY,
+            'text_secondary': ThemeColors.TEXT_SECONDARY,
+            'success': ThemeColors.SUCCESS,
+            'warning': ThemeColors.WARNING,
+            'error': ThemeColors.ERROR
         }
         
-        self.root.configure(bg=self.colors['background'])
+        self.root.configure(bg=ThemeColors.BG_DARK)
 
         # Try setting an icon if desired:
         logo_image_path = get_resource_path("app_logo.ico")
@@ -2912,7 +2942,7 @@ class HandGestureApp:
         self.root = root
         self.root.title("Hand Gesture-Only System [HV-SYSTEM]")
         self.root.state('zoomed')
-        self.root.configure(bg="#1e1e2f")
+        self.root.configure(bg=ThemeColors.BG_DARK)
 
         # Try to set icon
         logo_image_path = get_resource_path("app_logo.ico")
@@ -2921,33 +2951,26 @@ class HandGestureApp:
         except Exception as e:
             print(f"Failed to load application logo: {e}")
 
-        self.background_image_path = get_resource_path("hv_background.png")
-
-        # === Background Canvas ===
-        self.bg_canvas = tk.Canvas(self.root, highlightthickness=0)
+        # === Background Canvas with Theme Colors ===
+        self.bg_canvas = tk.Canvas(
+            self.root, 
+            highlightthickness=0,
+            bg=ThemeColors.BG_DARK
+        )
         self.bg_canvas.pack(fill=tk.BOTH, expand=True)
 
-        # Attempt to load the background image
-        if os.path.exists(self.background_image_path):
-            try:
-                image = Image.open(self.background_image_path)
-                screen_width = self.root.winfo_screenwidth()
-                screen_height = self.root.winfo_screenheight()
-                image = image.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
-                self.bg_image = ImageTk.PhotoImage(image)
-                self.bg_canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_image)
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to load background image:\n{self.background_image_path}\n{e}")
-        else:
-            messagebox.showerror("Error", f"Background image not found at:\n{self.background_image_path}")
+        # Create gradient background
+        self.create_gradient_background()
 
         # === Create Start, Stop, Go Back Buttons ===
         button_style = {
-            "bg": "white",
-            "fg": "black",
+            "bg": ThemeColors.BUTTON_BG,
+            "fg": ThemeColors.BUTTON_FG,
             "font": ("Helvetica", 11, "bold"),
             "relief": tk.FLAT,
-            "cursor": "hand2"
+            "cursor": "hand2",
+            "activebackground": ThemeColors.BUTTON_HOVER,
+            "activeforeground": ThemeColors.TEXT_PRIMARY
         }
 
         self.start_button = tk.Button(
@@ -2961,17 +2984,36 @@ class HandGestureApp:
         )
 
         # === Video Feed Canvas ===
-        self.canvas = tk.Canvas(self.bg_canvas, bg="white", highlightbackground="#1abc9c")
+        self.canvas = tk.Canvas(
+            self.bg_canvas, 
+            bg=ThemeColors.CANVAS_BG, 
+            highlightbackground=ThemeColors.CANVAS_BORDER,
+            highlightthickness=2
+        )
         
         # === Footer ===
-        self.footer = tk.Frame(self.bg_canvas, bg="#FFFFFF")
-        self.footer_label_left = tk.Label(self.footer, text="Albukhary International University",
-                                          bg="#FFFFFF", fg="black", font=("Arial", 10, "italic"))
-        self.footer_label_center = tk.Label(self.footer,
+        self.footer = tk.Frame(self.bg_canvas, bg=ThemeColors.BG_PRIMARY)
+        self.footer_label_left = tk.Label(
+            self.footer, 
+            text="Albukhary International University",
+            bg=ThemeColors.BG_PRIMARY, 
+            fg=ThemeColors.TEXT_PRIMARY, 
+            font=("Arial", 10, "italic")
+        )
+        self.footer_label_center = tk.Label(
+            self.footer,
             text="Developed by [Thiha Naing], 2024",
-            bg="#FFFFFF", fg="black", font=("Arial", 10, "italic"))
-        self.footer_label_right = tk.Label(self.footer, text=f"Version: {settings.VERSION}",
-                                           bg="#FFFFFF", fg="black", font=("Arial", 10, "italic"))
+            bg=ThemeColors.BG_PRIMARY, 
+            fg=ThemeColors.TEXT_PRIMARY, 
+            font=("Arial", 10, "italic")
+        )
+        self.footer_label_right = tk.Label(
+            self.footer, 
+            text=f"Version: {settings.VERSION}",
+            bg=ThemeColors.BG_PRIMARY, 
+            fg=ThemeColors.TEXT_PRIMARY, 
+            font=("Arial", 10, "italic")
+        )
 
         self.adjust_layout()
         self.root.bind("<Configure>", self.adjust_layout)
@@ -2979,18 +3021,50 @@ class HandGestureApp:
         # We do NOT run the voice recognition thread or maintain transcription here
         # because this is the gesture-only app.
 
+    def create_gradient_background(self):
+        """Create a modern gradient background"""
+        self.bg_canvas.delete("gradient")
+        
+        width = self.bg_canvas.winfo_width()
+        height = self.bg_canvas.winfo_height()
+        
+        if width <= 1 or height <= 1:
+            self.root.after(100, self.create_gradient_background)
+            return
+        
+        # Create gradient strips
+        for i in range(height):
+            # Create color transition from dark to primary
+            ratio = i / height
+            
+            # Interpolate between colors
+            r1, g1, b1 = self.hex_to_rgb(ThemeColors.BG_DARK)
+            r2, g2, b2 = self.hex_to_rgb(ThemeColors.PRIMARY)
+            
+            r = int(r1 + (r2 - r1) * ratio * 0.3)  # Subtle gradient
+            g = int(g1 + (g2 - g1) * ratio * 0.3)
+            b = int(b1 + (b2 - b1) * ratio * 0.3)
+            
+            color = f"#{r:02x}{g:02x}{b:02x}"
+            
+            self.bg_canvas.create_line(
+                0, i, width, i, 
+                fill=color, 
+                width=1,
+                tags="gradient"
+            )
+
+    def hex_to_rgb(self, hex_color):
+        """Convert hex color to RGB tuple"""
+        hex_color = hex_color.lstrip('#')
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
     def adjust_layout(self, event=None):
         screen_width = self.root.winfo_width()
         screen_height = self.root.winfo_height()
 
-        # Re-adjust background image
-        try:
-            image = Image.open(self.background_image_path)
-            image = image.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
-            self.bg_image = ImageTk.PhotoImage(image)
-            self.bg_canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_image)
-        except Exception as e:
-            pass  # optional
+        # Update gradient background
+        self.create_gradient_background()
 
         # Place buttons
         self.start_button.place(relx=0.35, rely=0.05, anchor=tk.CENTER)
@@ -3140,22 +3214,22 @@ class HandVoiceControlApp:
         self.root.title("Hand Gesture and Voice-Controlled Computer System [HV-SYSTEM]")
         self.root.state('zoomed')  # Start maximized
         
-        # Modern color scheme
+        # Use theme colors from settings
         self.colors = {
-            'primary': '#667eea',      # Modern purple-blue
-            'secondary': '#764ba2',    # Deep purple
-            'accent': '#f093fb',       # Light pink
-            'background': '#0f0f23',   # Very dark blue
-            'surface': '#1a1a2e',      # Dark blue-gray
-            'card': '#16213e',         # Card background
-            'text_primary': '#ffffff', # White text
-            'text_secondary': '#a0a9c0', # Gray text
-            'success': '#4ade80',      # Green
-            'warning': '#f59e0b',      # Orange
-            'error': '#ef4444'         # Red
+            'primary': ThemeColors.PRIMARY,
+            'secondary': ThemeColors.SECONDARY,
+            'accent': ThemeColors.ACCENT,
+            'background': ThemeColors.BG_DARK,
+            'surface': ThemeColors.BG_DARKER,
+            'card': ThemeColors.BG_SECONDARY,
+            'text_primary': ThemeColors.TEXT_PRIMARY,
+            'text_secondary': ThemeColors.TEXT_SECONDARY,
+            'success': ThemeColors.SUCCESS,
+            'warning': ThemeColors.WARNING,
+            'error': ThemeColors.ERROR
         }
         
-        self.root.configure(bg=self.colors['background'])
+        self.root.configure(bg=ThemeColors.BG_DARK)
 
         # === Set Application Icon ===
         logo_image_path = get_resource_path("app_logo.ico")

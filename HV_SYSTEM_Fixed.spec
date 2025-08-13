@@ -20,8 +20,6 @@ a = Analysis(
     pathex=[current_dir],
     binaries=[],
     datas=[
-        ('hv_background.png', '.'),
-        ('hv_userinterface.png', '.'),
         ('user_manual_guides', 'user_manual_guides'),
         ('config', 'config'),
         ('utils', 'utils'),

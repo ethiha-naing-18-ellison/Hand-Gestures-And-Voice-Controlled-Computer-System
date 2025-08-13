@@ -110,8 +110,7 @@ pyinstaller ^
     --windowed ^
     --icon=app_logo.ico ^
     --name="HV_SYSTEM_v2.0" ^
-    --add-data="hv_background.png;." ^
-    --add-data="hv_userinterface.png;." ^
+
     --add-data="user_manual_guides;user_manual_guides" ^
     --add-data="config;config" ^
     --add-data="utils;utils" ^
@@ -161,8 +160,6 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('hv_background.png', '.'),
-        ('hv_userinterface.png', '.'),
         ('user_manual_guides', 'user_manual_guides'),
         ('config', 'config'),
         ('utils', 'utils'),
@@ -468,8 +465,7 @@ if exist "dist" rmdir /s /q "dist"
 
 REM Build executable
 pyinstaller --onefile --windowed --icon=app_logo.ico --name="HV_SYSTEM_v2.0" ^
-    --add-data="hv_background.png;." ^
-    --add-data="hv_userinterface.png;." ^
+
     --add-data="user_manual_guides;user_manual_guides" ^
     --add-data="config;config" ^
     --add-data="utils;utils" ^
