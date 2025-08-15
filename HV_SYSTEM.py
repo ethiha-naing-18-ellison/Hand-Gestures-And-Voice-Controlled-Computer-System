@@ -2696,44 +2696,36 @@ class ModeSelectionPage:
             self.root.after(50, self.create_gradient_background)
 
     def create_mode_content(self):
-        """Create mode selection content"""
-        # Create mode selection card
-        card_frame = tk.Frame(
+        """Create mode selection content with improved layout"""
+        # Create main container with better spacing
+        container_frame = tk.Frame(
             self.bg_canvas,
-            bg=self.colors['card'],
-            relief=tk.FLAT,
-            bd=0
+            bg=self.colors['background']
         )
         
-        # Title
+        # Title with better positioning
         title_label = tk.Label(
-            card_frame,
-            text="🎯 Select Control Mode",
-            font=("Segoe UI", 36, "bold"),
-            fg=self.colors['primary'],
-            bg=self.colors['card']
+            container_frame,
+            text="Select Mode",
+            font=("Segoe UI", 32, "bold"),
+            fg=self.colors['text_primary'],
+            bg=self.colors['background']
         )
-        title_label.pack(pady=(40, 20))
+        title_label.pack(pady=(60, 40))
         
-        # Subtitle
-        subtitle_label = tk.Label(
-            card_frame,
-            text="Choose how you want to control your computer",
-            font=("Segoe UI", 16),
-            fg=self.colors['text_secondary'],
-            bg=self.colors['card']
-        )
-        subtitle_label.pack(pady=(0, 40))
+        # Mode selection grid frame
+        modes_frame = tk.Frame(container_frame, bg=self.colors['background'])
+        modes_frame.pack(pady=20)
         
-        # Mode selection frame
-        modes_frame = tk.Frame(card_frame, bg=self.colors['card'])
-        modes_frame.pack(pady=30)
+        # Configure grid weights for responsive layout
+        modes_frame.grid_columnconfigure(0, weight=1)
+        modes_frame.grid_columnconfigure(1, weight=1)
         
         # Hand Gesture Mode Card
-        gesture_card = self.create_mode_card(
+        gesture_card = self.create_improved_mode_card(
             modes_frame,
             icon="🖐️",
-            title="Hand Gesture Only",
+            title="Gesture Only",
             description="Control with hand movements\nPerfect for silent operation",
             features=["Silent operation", "Hand tracking", "Gesture recognition"],
             command=self.launch_gesture_only,
@@ -2741,7 +2733,7 @@ class ModeSelectionPage:
         )
         
         # Hand & Voice Mode Card
-        voice_card = self.create_mode_card(
+        voice_card = self.create_improved_mode_card(
             modes_frame,
             icon="🎤",
             title="Hand & Voice",
@@ -2751,12 +2743,12 @@ class ModeSelectionPage:
             column=1
         )
         
-        # Navigation buttons
-        nav_frame = tk.Frame(card_frame, bg=self.colors['card'])
-        nav_frame.pack(pady=(40, 40))
+        # Navigation buttons with better spacing
+        nav_frame = tk.Frame(container_frame, bg=self.colors['background'])
+        nav_frame.pack(pady=(40, 20))
         
         # Go Back button
-        back_button = self.create_modern_button(
+        back_button = self.create_improved_button(
             nav_frame,
             text="← Go Back",
             command=self.go_back,
@@ -2764,16 +2756,16 @@ class ModeSelectionPage:
         )
         back_button.pack()
         
-        # Position the card in center
+        # Position the container in center
         self.bg_canvas.create_window(
             self.bg_canvas.winfo_reqwidth() // 2,
             self.bg_canvas.winfo_reqheight() // 2,
-            window=card_frame,
+            window=container_frame,
             anchor=tk.CENTER
         )
         
-        # Update card position when canvas size changes
-        self.bg_canvas.bind('<Configure>', self.center_card)
+        # Update container position when canvas size changes
+        self.bg_canvas.bind('<Configure>', self.center_container)
 
     def create_mode_card(self, parent, icon, title, description, features, command, column):
         """Create a mode selection card"""
@@ -2902,13 +2894,115 @@ class ModeSelectionPage:
             else:
                 button.config(bg=self.colors['surface'])
 
-    def center_card(self, event):
-        """Center the card when canvas is resized"""
-        canvas_width = event.width
-        canvas_height = event.height
+    def center_container(self, event=None):
+        """Center the container when window is resized"""
+        canvas_width = self.bg_canvas.winfo_width()
+        canvas_height = self.bg_canvas.winfo_height()
         
-        # Update card position
+        # Update container position
         self.bg_canvas.coords("all", canvas_width // 2, canvas_height // 2)
+
+    def create_improved_mode_card(self, parent, icon, title, description, features, command, column):
+        """Create an improved mode selection card with better styling"""
+        card = tk.Frame(
+            parent,
+            bg=self.colors['surface'],
+            relief=tk.FLAT,
+            bd=0
+        )
+        card.grid(row=0, column=column, padx=20, pady=10, sticky="nsew")
+        
+        # Icon
+        icon_label = tk.Label(
+            card,
+            text=icon,
+            font=("Segoe UI", 40),
+            bg=self.colors['surface'],
+            fg=self.colors['accent']
+        )
+        icon_label.pack(pady=(25, 15))
+        
+        # Title
+        title_label = tk.Label(
+            card,
+            text=title,
+            font=("Segoe UI", 16, "bold"),
+            bg=self.colors['surface'],
+            fg=self.colors['text_primary']
+        )
+        title_label.pack(pady=(0, 10))
+        
+        # Description
+        desc_label = tk.Label(
+            card,
+            text=description,
+            font=("Segoe UI", 11),
+            bg=self.colors['surface'],
+            fg=self.colors['text_secondary'],
+            justify=tk.CENTER,
+            wraplength=200
+        )
+        desc_label.pack(pady=(0, 15))
+        
+        # Features
+        for feature in features:
+            feature_label = tk.Label(
+                card,
+                text=f"✓ {feature}",
+                font=("Segoe UI", 10),
+                bg=self.colors['surface'],
+                fg=self.colors['success'],
+                anchor="w"
+            )
+            feature_label.pack(pady=1, padx=20, fill=tk.X)
+        
+        # Select button
+        select_button = self.create_improved_button(
+            card,
+            text="Select Mode",
+            command=command,
+            primary=True
+        )
+        select_button.pack(pady=(20, 25))
+        
+        # Add hover effects to the card
+        card.bind("<Enter>", lambda e: self.on_card_hover(card, True))
+        card.bind("<Leave>", lambda e: self.on_card_hover(card, False))
+        
+        return card
+
+    def create_improved_button(self, parent, text, command, primary=True):
+        """Create an improved modern styled button"""
+        if primary:
+            bg_color = self.colors['primary']
+            fg_color = "#082026"  # Dark text for better contrast
+            active_bg = self.colors['secondary']
+        else:
+            bg_color = "transparent"
+            fg_color = self.colors['text_primary']
+            active_bg = "rgba(255,255,255,.06)"
+        
+        button = tk.Button(
+            parent,
+            text=text,
+            command=command,
+            font=("Segoe UI", 11, "bold"),
+            bg=bg_color,
+            fg=fg_color,
+            activebackground=active_bg,
+            activeforeground=fg_color,
+            relief=tk.FLAT,
+            bd=0,
+            cursor="hand2",
+            padx=25,
+            pady=10
+        )
+        
+        # Add hover effects
+        button.bind("<Enter>", lambda e: self.on_button_hover(button, True, primary))
+        button.bind("<Leave>", lambda e: self.on_button_hover(button, False, primary))
+        
+        return button
 
     def launch_gesture_only(self):
         """
@@ -2962,57 +3056,103 @@ class HandGestureApp:
         # Create gradient background
         self.create_gradient_background()
 
-        # === Create Start, Stop, Go Back Buttons ===
-        button_style = {
-            "bg": ThemeColors.BUTTON_BG,
-            "fg": ThemeColors.BUTTON_FG,
-            "font": ("Helvetica", 11, "bold"),
-            "relief": tk.FLAT,
-            "cursor": "hand2",
-            "activebackground": ThemeColors.BUTTON_HOVER,
-            "activeforeground": ThemeColors.TEXT_PRIMARY
-        }
-
+        # === Create improved button container ===
+        button_frame = tk.Frame(self.bg_canvas, bg=ThemeColors.BG_DARK)
+        button_frame.pack(pady=20)
+        
+        # Create improved buttons with better styling
         self.start_button = tk.Button(
-            self.bg_canvas, text="Start", command=self.start_system, width=12, **button_style
+            button_frame, 
+            text="Start", 
+            command=self.start_system, 
+            font=("Segoe UI", 12, "bold"),
+            bg=ThemeColors.PRIMARY,
+            fg="#082026",
+            activebackground=ThemeColors.SECONDARY,
+            activeforeground="#082026",
+            relief=tk.FLAT,
+            cursor="hand2",
+            padx=30,
+            pady=12
         )
-        self.stop_button = tk.Button(
-            self.bg_canvas, text="Stop", command=self.stop_system, width=12, **button_style
-        )
+        self.start_button.pack(side=tk.LEFT, padx=10)
+        
         self.go_back_button = tk.Button(
-            self.bg_canvas, text="Go Back", command=self.go_back, width=12, **button_style
+            button_frame, 
+            text="Go Back", 
+            command=self.go_back,
+            font=("Segoe UI", 12, "bold"),
+            bg="transparent",
+            fg=ThemeColors.TEXT_PRIMARY,
+            activebackground="rgba(255,255,255,.06)",
+            activeforeground=ThemeColors.TEXT_PRIMARY,
+            relief=tk.FLAT,
+            cursor="hand2",
+            padx=30,
+            pady=12
         )
+        self.go_back_button.pack(side=tk.LEFT, padx=10)
+        
+        self.stop_button = tk.Button(
+            button_frame, 
+            text="Stop", 
+            command=self.stop_system,
+            font=("Segoe UI", 12, "bold"),
+            bg="transparent",
+            fg=ThemeColors.TEXT_PRIMARY,
+            activebackground="rgba(255,255,255,.06)",
+            activeforeground=ThemeColors.TEXT_PRIMARY,
+            relief=tk.FLAT,
+            cursor="hand2",
+            padx=30,
+            pady=12
+        )
+        self.stop_button.pack(side=tk.LEFT, padx=10)
 
-        # === Video Feed Canvas ===
-        self.canvas = tk.Canvas(
+        # === Video Feed Canvas with improved styling ===
+        canvas_frame = tk.Frame(
             self.bg_canvas, 
-            bg=ThemeColors.CANVAS_BG, 
-            highlightbackground=ThemeColors.CANVAS_BORDER,
-            highlightthickness=2
+            bg=ThemeColors.BG_DARK,
+            relief=tk.FLAT,
+            bd=0
         )
         
-        # === Footer ===
-        self.footer = tk.Frame(self.bg_canvas, bg=ThemeColors.BG_PRIMARY)
+        self.canvas = tk.Canvas(
+            canvas_frame, 
+            bg=ThemeColors.CANVAS_BG, 
+            highlightbackground=ThemeColors.CANVAS_BORDER,
+            highlightthickness=2,
+            relief=tk.FLAT
+        )
+        
+        # === Footer with improved styling ===
+        self.footer = tk.Frame(
+            self.bg_canvas, 
+            bg=ThemeColors.BG_DARK,
+            relief=tk.FLAT,
+            bd=0
+        )
+        
         self.footer_label_left = tk.Label(
             self.footer, 
             text="Albukhary International University",
-            bg=ThemeColors.BG_PRIMARY, 
-            fg=ThemeColors.TEXT_PRIMARY, 
-            font=("Arial", 10, "italic")
+            bg=ThemeColors.BG_DARK, 
+            fg=ThemeColors.TEXT_SECONDARY, 
+            font=("Segoe UI", 10, "italic")
         )
         self.footer_label_center = tk.Label(
             self.footer,
             text="Developed by [Thiha Naing], 2024",
-            bg=ThemeColors.BG_PRIMARY, 
-            fg=ThemeColors.TEXT_PRIMARY, 
-            font=("Arial", 10, "italic")
+            bg=ThemeColors.BG_DARK, 
+            fg=ThemeColors.TEXT_SECONDARY, 
+            font=("Segoe UI", 10, "italic")
         )
         self.footer_label_right = tk.Label(
             self.footer, 
             text=f"Version: {settings.VERSION}",
-            bg=ThemeColors.BG_PRIMARY, 
-            fg=ThemeColors.TEXT_PRIMARY, 
-            font=("Arial", 10, "italic")
+            bg=ThemeColors.BG_DARK, 
+            fg=ThemeColors.TEXT_SECONDARY, 
+            font=("Segoe UI", 10, "italic")
         )
 
         self.adjust_layout()
